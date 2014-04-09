@@ -101,7 +101,7 @@ class PassiveGenerator:
         elif 'crit_below' in metric_def and  metric_value < metric_def['crit_below']:
             service_state = 2
         elif 'warn_below' in metric_def and metric_value < metric_def['warn_below']:
-		service_state = 1
+            service_state = 1
         elif 'crit_above' in metric_def and metric_value > metric_def['crit_above']:
             service_state = 2
         elif 'warn_above' in metric_def and metric_value > metric_def['warn_above']:
