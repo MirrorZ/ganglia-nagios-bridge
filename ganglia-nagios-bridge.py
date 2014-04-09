@@ -101,7 +101,7 @@ class PassiveGenerator:
         elif 'crit_below' in metric_def and  metric_value < metric_def['crit_below']:
             service_state = 2
         elif 'warn_below' in metric_def and metric_value < metric_def['warn_below']:
-	    service_state = 1
+		service_state = 1
         elif 'crit_above' in metric_def and metric_value > metric_def['crit_above']:
             service_state = 2
         elif 'warn_above' in metric_def and metric_value > metric_def['warn_above']:
@@ -215,7 +215,7 @@ class GangliaHandler(xml.sax.ContentHandler):
 	#setting service state as 0 by default
 	service_state=0
         # call the handler to process the value and return service state after comparing metric value and threshold:
-        service_state = self.value_handler.process(self.metric, service_name, self.host_name, metric_name, metric_value, metric_tn, metric_tmax, metric_dmax, last_seen)
+	service_state = self.value_handler.process(self.metric, service_name, self.host_name, metric_name, metric_value, metric_tn, metric_tmax, metric_dmax, last_seen)
 	# write Passive checks to checkresult file
 	self.checkresult_file_handler.create(self.host_name, service_name, last_seen, service_state, metric_value, metric_units)
 	
