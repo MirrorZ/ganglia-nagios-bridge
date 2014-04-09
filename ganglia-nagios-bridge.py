@@ -41,50 +41,22 @@ class SocketInputSource:
     def read(self, buf_size):
         return self.socket.recv(buf_size)
 
-# interprets metric values to generate Nagios passive notifications
-class PassiveGenerator:
-    def __init__(self, force_dmax, tmax_grace):
-        self.force_dmax = force_dmax
-        self.tmax_grace = tmax_grace
-        
-        # Nagios is quite fussy about the filename, it must be
+
+class GenerateNagiosCheckResult:
+    
+    def __init__(self):
+	# Nagios is quite fussy about the filename, it must be
         # a 7 character name starting with 'c'
-        tmp_file = tempfile.mkstemp(prefix='c',dir=nagios_result_dir)
+	tmp_file = tempfile.mkstemp(prefix='c',dir=nagios_result_dir) # specifies name and directory, check tempfile thoroughly
         self.fh = tmp_file[0]
         self.cmd_file = tmp_file[1]
         os.write(self.fh, "### Active Check Result File ###\n")
         os.write(self.fh, "file_time=" + str(int(time.time())) + "\n")
-
-    def done(self):
-        os.close(self.fh)
-        ok_filename = self.cmd_file + ".ok"
-        ok_fh = file(ok_filename, 'a')
-        ok_fh.close()
-
-    def process(self, metric_def, service_name, host, metric_name, metric_value, metric_tn, metric_tmax, metric_dmax, last_seen):
-        effective_dmax = metric_dmax
-        if(self.force_dmax > 0):
-            effective_dmax = force_dmax
-        effective_tmax = metric_tmax + self.tmax_grace
-        if effective_dmax > 0 and metric_tn > effective_dmax:
-            service_state = 3
-        elif metric_tn > effective_tmax:
-            service_state = 3
-        elif isinstance(metric_value, str):
-            service_state = 0
-        elif 'crit_below' in metric_def and metric_value < metric_def['crit_below']:
-            service_state = 2
-        elif 'warn_below' in metric_def and metric_value < metric_def['warn_below']:
-            service_state = 1
-        elif 'crit_above' in metric_def and metric_value > metric_def['crit_above']:
-            service_state = 2
-        elif 'warn_above' in metric_def and metric_value > metric_def['warn_above']:
-            service_state = 1
-        else:
-            service_state = 0
-        #cmd = "[" + str(int(time.time())) + "] PROCESS_SERVICE_CHECK_RESULT;" + host + ";" + service_name + ";" + str(service_state) + ";Value = " + str(metric_value)
-        #os.write(self.fh, cmd + "\n")
-        os.write(self.fh, "\n### Nagios Service Check Result ###\n")
+	self.return_codes = { 0 : 'OK', 1 : 'WARNING', 2 : 'CRITICAL', 3 : 'UNKNOWN' }
+	
+    # Writes to the checkresult file 
+    def create(self, host, service_name, last_seen, service_state, metric_value, metric_units):
+	os.write(self.fh, "\n### Nagios Service Check Result ###\n")
         os.write(self.fh, "# Time: " + time.asctime() + "\n")
         os.write(self.fh, "host_name=" + host + "\n")
         os.write(self.fh, "service_description=" + service_name + "\n")
@@ -98,15 +70,58 @@ class PassiveGenerator:
         os.write(self.fh, "early_timeout=0\n")
         os.write(self.fh, "exited_ok=1\n")
         os.write(self.fh, "return_code=" + str(service_state) + "\n")
-        os.write(self.fh, "output=" + service_name + " " + str(metric_value) + "\\n\n")
-        #os.write(self.fh, "\n")
+        os.write(self.fh, "output=" + service_name + " " + self.return_codes[service_state] + "- " + service_name + " " +  str(metric_value) + " " + metric_units + "\\n\n")
+
+    def done(self):
+        os.close(self.fh)
+        ok_filename = self.cmd_file + ".ok"
+        ok_fh = file(ok_filename, 'a')
+        ok_fh.close()
+
+
+
+# interprets metric values to generate Nagios passive notifications
+class PassiveGenerator:
+    def __init__(self, force_dmax, tmax_grace):
+        self.force_dmax = force_dmax
+        self.tmax_grace = tmax_grace
+        
+
+    def process(self, metric_def, service_name, host, metric_name, metric_value, metric_tn, metric_tmax, metric_dmax, last_seen):
+        effective_dmax = metric_dmax
+        if(self.force_dmax > 0):
+            effective_dmax = force_dmax
+        effective_tmax = metric_tmax + self.tmax_grace
+        if effective_dmax > 0 and metric_tn > effective_dmax:
+            service_state = 3
+        elif metric_tn > effective_tmax:
+            service_state = 3
+        elif isinstance(metric_value, str):
+            service_state = 0
+        elif 'crit_below' in metric_def and  metric_value < metric_def['crit_below']:
+            service_state = 2
+        elif 'warn_below' in metric_def and metric_value < metric_def['warn_below']:
+	    service_state = 1
+        elif 'crit_above' in metric_def and metric_value > metric_def['crit_above']:
+            service_state = 2
+        elif 'warn_above' in metric_def and metric_value > metric_def['warn_above']:
+            service_state = 1
+        else:
+            service_state = 0
+	return service_state
+        
+
+    def done(self):
+	self.gn.done()
+
 
 
 # SAX event handler for parsing the Ganglia XML stream
 class GangliaHandler(xml.sax.ContentHandler):
-    def __init__(self, clusters_c, value_handler):
+    def __init__(self, clusters_c, value_handler, checkresult_file_handler):
         self.clusters_c = clusters_c
         self.value_handler = value_handler
+	self.checkresult_file_handler = checkresult_file_handler
         self.clusters_cache = {}
         self.hosts_cache = {}
         self.metrics_cache = {}
@@ -188,6 +203,7 @@ class GangliaHandler(xml.sax.ContentHandler):
         metric_tmax = int(attrs['TMAX'])
         metric_dmax = int(attrs['DMAX'])
         metric_type = attrs['TYPE']
+	metric_units = attrs['UNITS']
         # they metric_value has a dynamic type:
         if metric_type == 'string':
             metric_value = metric_value_raw
@@ -196,9 +212,13 @@ class GangliaHandler(xml.sax.ContentHandler):
         else:
             metric_value = int(metric_value_raw)
         last_seen = self.cluster_localtime - metric_tn
-        # call the handler to process the value:
-        self.value_handler.process(self.metric, service_name, self.host_name, metric_name, metric_value, metric_tn, metric_tmax, metric_dmax, last_seen)
-
+	#setting service state as 0 by default
+	service_state=0
+        # call the handler to process the value and return service state after comparing metric value and threshold:
+        service_state = self.value_handler.process(self.metric, service_name, self.host_name, metric_name, metric_value, metric_tn, metric_tmax, metric_dmax, last_seen)
+	# write Passive checks to checkresult file
+	self.checkresult_file_handler.create(self.host_name, service_name, last_seen, service_state, metric_value, metric_units)
+	
 # main program code
 if __name__ == '__main__':
     try:
@@ -232,12 +252,13 @@ if __name__ == '__main__':
         # set up the SAX parser
         parser = xml.sax.make_parser()
         pg = PassiveGenerator(force_dmax, tmax_grace)
-        parser.setContentHandler(GangliaHandler(clusters_c, pg))
+	gn = GenerateNagiosCheckResult()
+        parser.setContentHandler(GangliaHandler(clusters_c, pg,gn))
         # run the main program loop
         parser.parse(SocketInputSource(sock))
-
+	
         # write out for Nagios
-        pg.done()
+        gn.done()
 
         # all done
         sock.close()
