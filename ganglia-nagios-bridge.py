@@ -47,7 +47,7 @@ class GenerateNagiosCheckResult:
     def __init__(self):
 	# Nagios is quite fussy about the filename, it must be
         # a 7 character name starting with 'c'
-	tmp_file = tempfile.mkstemp(prefix='c',dir=nagios_result_dir) # specifies name and directory, check tempfile thoroughly
+        tmp_file = tempfile.mkstemp(prefix='c',dir=nagios_result_dir) # specifies name and directory, check tempfile thoroughly
         self.fh = tmp_file[0]
         self.cmd_file = tmp_file[1]
         os.write(self.fh, "### Active Check Result File ###\n")
@@ -98,7 +98,7 @@ class PassiveGenerator:
             service_state = 3
         elif isinstance(metric_value, str):
             service_state = 0
-        elif 'crit_below' in metric_def and  metric_value < metric_def['crit_below']:
+        elif 'crit_below' in metric_def and metric_value < metric_def['crit_below']:
             service_state = 2
         elif 'warn_below' in metric_def and metric_value < metric_def['warn_below']:
             service_state = 1
@@ -255,8 +255,7 @@ if __name__ == '__main__':
 	gn = GenerateNagiosCheckResult()
         parser.setContentHandler(GangliaHandler(clusters_c, pg,gn))
         # run the main program loop
-        parser.parse(SocketInputSource(sock))
-	
+        parser.parse(SocketInputSource(sock))	
         # write out for Nagios
         gn.done()
 
