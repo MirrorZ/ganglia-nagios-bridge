@@ -25,7 +25,7 @@ import argparse
 import re
 import socket
 import xml.sax
-import NagiosCheckResult
+import nagios_checkresult
 
 # wrapper class so that the SAX parser can process data from a network
 # socket
@@ -46,7 +46,6 @@ class PassiveGenerator:
         self.force_dmax = force_dmax
         self.tmax_grace = tmax_grace
         
-
     def process(self, metric_def, service_name, host, metric_name, metric_value, metric_tn, metric_tmax, metric_dmax, last_seen):
         effective_dmax = metric_dmax
         if(self.force_dmax > 0):
@@ -167,12 +166,13 @@ class GangliaHandler(xml.sax.ContentHandler):
         else:
             metric_value = int(metric_value_raw)
         last_seen = self.cluster_localtime - metric_tn
+	
 	#setting service state as 0 by default
 	service_state=0
         # call the handler to process the value and return service state after comparing metric value and threshold:
         service_state = self.value_handler.process(self.metric, service_name, self.host_name, metric_name, metric_value, metric_tn, metric_tmax, metric_dmax, last_seen)
 	# write Passive checks to checkresult file
-	self.checkresult_file_handler.Build(self.host_name, service_name, last_seen, service_state, metric_value, metric_units)
+	self.checkresult_file_handler.build(self.host_name, service_name, last_seen, service_state, metric_value, metric_units)
 	
 # main program code
 if __name__ == '__main__':
@@ -208,15 +208,15 @@ if __name__ == '__main__':
         parser = xml.sax.make_parser()
         pg = PassiveGenerator(force_dmax, tmax_grace)
 	#Instantiate GenerateNagiosCheckResult class
-	gn = NagiosCheckResult.GenerateNagiosCheckResult()
+	gn = nagios_checkresult.GenerateNagiosCheckResult()
 	#Create CheckResultFile
-	gn.Create(nagios_result_dir)
+	gn.create(nagios_result_dir)
         parser.setContentHandler(GangliaHandler(clusters_c, pg,gn))
         # run the main program loop
         parser.parse(SocketInputSource(sock))
 	
         # write out for Nagios
-        gn.Submit()
+        gn.submit()
 
         # all done
         sock.close()
