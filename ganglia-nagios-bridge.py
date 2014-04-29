@@ -22,12 +22,10 @@
 ############################################################################
 
 import argparse
-import os
 import re
 import socket
-import tempfile
-import time
 import xml.sax
+import NagiosCheckResult
 
 # wrapper class so that the SAX parser can process data from a network
 # socket
@@ -40,44 +38,6 @@ class SocketInputSource:
 	
     def read(self, buf_size):
         return self.socket.recv(buf_size)
-
-
-class GenerateNagiosCheckResult:
-    
-    def __init__(self):
-	# Nagios is quite fussy about the filename, it must be
-        # a 7 character name starting with 'c'
-        tmp_file = tempfile.mkstemp(prefix='c',dir=nagios_result_dir) # specifies name and directory, check tempfile thoroughly
-        self.fh = tmp_file[0]
-        self.cmd_file = tmp_file[1]
-        os.write(self.fh, "### Active Check Result File ###\n")
-        os.write(self.fh, "file_time=" + str(int(time.time())) + "\n")
-	self.return_codes = { 0 : 'OK', 1 : 'WARNING', 2 : 'CRITICAL', 3 : 'UNKNOWN' }
-	
-    # Writes to the checkresult file 
-    def create(self, host, service_name, last_seen, service_state, metric_value, metric_units):
-	os.write(self.fh, "\n### Nagios Service Check Result ###\n")
-        os.write(self.fh, "# Time: " + time.asctime() + "\n")
-        os.write(self.fh, "host_name=" + host + "\n")
-        os.write(self.fh, "service_description=" + service_name + "\n")
-        os.write(self.fh, "check_type=0\n")
-        os.write(self.fh, "check_options=0\n")
-        os.write(self.fh, "scheduled_check=1\n")
-        os.write(self.fh, "reschedule_check=1\n")
-        os.write(self.fh, "latency=0.1\n")
-        os.write(self.fh, "start_time=" + str(last_seen) + ".0\n")
-        os.write(self.fh, "finish_time=" + str(last_seen) + ".0\n")
-        os.write(self.fh, "early_timeout=0\n")
-        os.write(self.fh, "exited_ok=1\n")
-        os.write(self.fh, "return_code=" + str(service_state) + "\n")
-        os.write(self.fh, "output=" + service_name + " " + self.return_codes[service_state] + "- " + service_name + " " +  str(metric_value) + " " + metric_units + "\\n\n")
-
-    def done(self):
-        os.close(self.fh)
-        ok_filename = self.cmd_file + ".ok"
-        ok_fh = file(ok_filename, 'a')
-        ok_fh.close()
-
 
 
 # interprets metric values to generate Nagios passive notifications
@@ -98,10 +58,10 @@ class PassiveGenerator:
             service_state = 3
         elif isinstance(metric_value, str):
             service_state = 0
-        elif 'crit_below' in metric_def and metric_value < metric_def['crit_below']:
+        elif 'crit_below' in metric_def and  metric_value < metric_def['crit_below']:
             service_state = 2
         elif 'warn_below' in metric_def and metric_value < metric_def['warn_below']:
-            service_state = 1
+	    service_state = 1
         elif 'crit_above' in metric_def and metric_value > metric_def['crit_above']:
             service_state = 2
         elif 'warn_above' in metric_def and metric_value > metric_def['warn_above']:
@@ -109,12 +69,7 @@ class PassiveGenerator:
         else:
             service_state = 0
 	return service_state
-        
-
-    def done(self):
-	self.gn.done()
-
-
+      
 
 # SAX event handler for parsing the Ganglia XML stream
 class GangliaHandler(xml.sax.ContentHandler):
@@ -215,9 +170,9 @@ class GangliaHandler(xml.sax.ContentHandler):
 	#setting service state as 0 by default
 	service_state=0
         # call the handler to process the value and return service state after comparing metric value and threshold:
-	service_state = self.value_handler.process(self.metric, service_name, self.host_name, metric_name, metric_value, metric_tn, metric_tmax, metric_dmax, last_seen)
+        service_state = self.value_handler.process(self.metric, service_name, self.host_name, metric_name, metric_value, metric_tn, metric_tmax, metric_dmax, last_seen)
 	# write Passive checks to checkresult file
-	self.checkresult_file_handler.create(self.host_name, service_name, last_seen, service_state, metric_value, metric_units)
+	self.checkresult_file_handler.Build(self.host_name, service_name, last_seen, service_state, metric_value, metric_units)
 	
 # main program code
 if __name__ == '__main__':
@@ -252,12 +207,16 @@ if __name__ == '__main__':
         # set up the SAX parser
         parser = xml.sax.make_parser()
         pg = PassiveGenerator(force_dmax, tmax_grace)
-	gn = GenerateNagiosCheckResult()
+	#Instantiate GenerateNagiosCheckResult class
+	gn = NagiosCheckResult.GenerateNagiosCheckResult()
+	#Create CheckResultFile
+	gn.Create(nagios_result_dir)
         parser.setContentHandler(GangliaHandler(clusters_c, pg,gn))
         # run the main program loop
-        parser.parse(SocketInputSource(sock))	
+        parser.parse(SocketInputSource(sock))
+	
         # write out for Nagios
-        gn.done()
+        gn.Submit()
 
         # all done
         sock.close()
