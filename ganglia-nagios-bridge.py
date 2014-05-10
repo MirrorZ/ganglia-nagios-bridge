@@ -40,34 +40,34 @@ class SocketInputSource:
         return self.socket.recv(buf_size)
 
 
-# interprets metric values to generate Nagios passive notifications
+# interprets metric values to generate service return codes
 class PassiveGenerator:
     def __init__(self, force_dmax, tmax_grace):
         self.force_dmax = force_dmax
         self.tmax_grace = tmax_grace
         
-    def process(self, metric_def, service_name, host, metric_name, metric_value, metric_tn, metric_tmax, metric_dmax, last_seen):
+    def process(self, metric_def, metric_value, metric_tn, metric_tmax, metric_dmax):
         effective_dmax = metric_dmax
         if(self.force_dmax > 0):
             effective_dmax = force_dmax
         effective_tmax = metric_tmax + self.tmax_grace
         if effective_dmax > 0 and metric_tn > effective_dmax:
-            service_state = 3
+            service_return_code = 3
         elif metric_tn > effective_tmax:
-            service_state = 3
+            service_return_code = 3
         elif isinstance(metric_value, str):
-            service_state = 0
+            service_return_code = 0
         elif 'crit_below' in metric_def and  metric_value < metric_def['crit_below']:
-            service_state = 2
+            service_return_code = 2
         elif 'warn_below' in metric_def and metric_value < metric_def['warn_below']:
-	    service_state = 1
+	    service_return_code = 1
         elif 'crit_above' in metric_def and metric_value > metric_def['crit_above']:
-            service_state = 2
+            service_return_code = 2
         elif 'warn_above' in metric_def and metric_value > metric_def['warn_above']:
-            service_state = 1
+            service_return_code = 1
         else:
-            service_state = 0
-	return service_state
+            service_return_code = 0
+	return service_return_code
       
 
 # SAX event handler for parsing the Ganglia XML stream
@@ -126,12 +126,14 @@ class GangliaHandler(xml.sax.ContentHandler):
             if cache_key in self.hosts_cache:
                 self.host_idx = self.hosts_cache[cache_key]
                 self.metrics = self.clusters_c[self.cluster_idx][1][self.host_idx][1]
+		self.handle_host(host_name, attrs)
                 return
             for idx, host_def in enumerate(self.hosts):
                 if host_def[0].match(self.host_name):
                     self.hosts_cache[cache_key] = idx
                     self.host_idx = idx
                     self.metrics = host_def[1]
+		    self.handle_host(self.host_name, attrs)
                     return
 
         # handle a CLUSTER element in the XML
@@ -150,6 +152,18 @@ class GangliaHandler(xml.sax.ContentHandler):
                     self.hosts = cluster_def[1]
                     return
 
+    # checks the state of host by comaring tmax and tn for the host
+    def handle_host(self, host_name, attrs):
+        host_tn = int(attrs['TN'])
+	host_tmax = int(attrs['TMAX'])
+	host_last_seen = self.cluster_localtime - host_tn
+	if host_tn > host_tmax*4 :
+	    host_return_code = 1	#host down
+	else:
+	    host_return_code = 0	#host up
+	# write host checks to Nagios checkresult file
+	self.checkresult_file_handler.build_host(self.host_name, host_last_seen, host_return_code)
+
     def handle_metric(self, metric_name, service_name, attrs):
         # extract the metric attributes
         metric_value_raw = attrs['VAL']
@@ -158,21 +172,23 @@ class GangliaHandler(xml.sax.ContentHandler):
         metric_dmax = int(attrs['DMAX'])
         metric_type = attrs['TYPE']
 	metric_units = attrs['UNITS']
-        # they metric_value has a dynamic type:
+        # the metric_value has a dynamic type:
         if metric_type == 'string':
             metric_value = metric_value_raw
         elif metric_type == 'double' or metric_type == 'float':
             metric_value = float(metric_value_raw)
         else:
             metric_value = int(metric_value_raw)
-        last_seen = self.cluster_localtime - metric_tn
+        service_last_seen = self.cluster_localtime - metric_tn
 	
-	#setting service state as 0 by default
-	service_state=0
+	#setting service return code as 0 by default
+	service_return_code=0
         # call the handler to process the value and return service state after comparing metric value and threshold:
-        service_state = self.value_handler.process(self.metric, service_name, self.host_name, metric_name, metric_value, metric_tn, metric_tmax, metric_dmax, last_seen)
-	# write Passive checks to checkresult file
-	self.checkresult_file_handler.build(self.host_name, service_name, last_seen, service_state, metric_value, metric_units)
+        service_return_code = self.value_handler.process(self.metric, metric_value, metric_tn, metric_tmax, metric_dmax)
+	# write Passive service checks to checkresult file
+	self.checkresult_file_handler.build_service(self.host_name, service_name, service_last_seen, service_return_code, metric_value, metric_units)
+
+    
 	
 # main program code
 if __name__ == '__main__':
