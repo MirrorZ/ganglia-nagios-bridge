@@ -21,6 +21,7 @@
 import os
 import tempfile
 import time
+import sys
 
 
 class GenerateNagiosCheckResult:
@@ -33,12 +34,17 @@ class GenerateNagiosCheckResult:
     def create(self, nagios_result_dir):
 	# Nagios is quite fussy about the filename, it must be
         # a 7 character name starting with 'c'
-	tmp_file = tempfile.mkstemp(prefix='c',dir=nagios_result_dir) # specifies name and directory, check tempfile thoroughly
-        self.fh = tmp_file[0]
-        self.cmd_file = tmp_file[1]
-        os.write(self.fh, "### Active Check Result File ###\n")
-        os.write(self.fh, "file_time=" + str(int(time.time())) + "\n")
-  
+	try:
+		tmp_file = tempfile.mkstemp(prefix='c',dir=nagios_result_dir) # specifies name and directory, check tempfile thoroughly
+		self.fh = tmp_file[0]
+        	self.cmd_file = tmp_file[1]
+        	os.write(self.fh, "### Active Check Result File ###\n")
+        	os.write(self.fh, "file_time=" + str(int(time.time())) + "\n")
+	except OSError as e:
+    		#print "OS error({0}): {1}".format(e.errno, e.strerror)
+		print "Failed to create tempfile at", nagios_result_dir
+		sys.exit(1)
+        
     # Accepts host name, last seen time and return code for the host checkresult
     # Writes host checks to checkresult file
     def build_host(self, host, last_seen, host_return_code):
