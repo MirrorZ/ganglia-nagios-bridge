@@ -156,13 +156,15 @@ class GangliaHandler(xml.sax.ContentHandler):
     def handle_host(self, host_name, attrs):
         host_tn = int(attrs['TN'])
 	host_tmax = int(attrs['TMAX'])
-	host_last_seen = self.cluster_localtime - host_tn
+	last_seen = self.cluster_localtime - host_tn
 	if host_tn > host_tmax*4 :
 	    host_return_code = 1	#host down
 	else:
 	    host_return_code = 0	#host up
+	host_last_seen = str(last_seen) + '.0'
+	
 	# write host checks to Nagios checkresult file
-	self.checkresult_file_handler.build_host(self.host_name, host_last_seen, host_return_code)
+	self.checkresult_file_handler.build_host(self.host_name, 0, 0, 1, 1, 0.1, host_last_seen, host_last_seen, 0, 1, host_return_code)
 
     def handle_metric(self, metric_name, service_name, attrs):
         # extract the metric attributes
@@ -179,14 +181,15 @@ class GangliaHandler(xml.sax.ContentHandler):
             metric_value = float(metric_value_raw)
         else:
             metric_value = int(metric_value_raw)
-        service_last_seen = self.cluster_localtime - metric_tn
+        last_seen = self.cluster_localtime - metric_tn
+	service_last_seen = str(last_seen) + '.0'
 	
 	#setting service return code as 0 by default
 	service_return_code=0
         # call the handler to process the value and return service state after comparing metric value and threshold:
-        service_return_code = self.value_handler.process(self.metric, metric_value, metric_tn, metric_tmax, metric_dmax)
+        service_return_code = self.value_handler.process(self.metric, metric_value, metric_tn, metric_tmax, metric_dmax)	
 	# write Passive service checks to checkresult file
-	self.checkresult_file_handler.build_service(self.host_name, service_name, service_last_seen, service_return_code, metric_value, metric_units)
+	self.checkresult_file_handler.build_service(self.host_name, service_name, 0, 0, 1, 1, 0.1, service_last_seen, service_last_seen, 0, 1, service_return_code, metric_value, metric_units)
 
     
 	
