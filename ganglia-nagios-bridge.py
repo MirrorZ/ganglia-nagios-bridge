@@ -164,7 +164,7 @@ class GangliaHandler(xml.sax.ContentHandler):
 	host_last_seen = str(last_seen) + '.0'
 	
 	# write host checks to Nagios checkresult file
-	self.checkresult_file_handler.build_host(self.host_name, 0, 0, 1, 1, 0.1, host_last_seen, host_last_seen, 0, 1, host_return_code)
+	self.checkresult_file_handler.build_host(self.host_name, 0, 0, 1, 1, 0.1, host_last_seen, host_last_seen, 0, 1, host_return_code,"")
 
     def handle_metric(self, metric_name, service_name, attrs):
         # extract the metric attributes
@@ -189,7 +189,7 @@ class GangliaHandler(xml.sax.ContentHandler):
         # call the handler to process the value and return service state after comparing metric value and threshold:
         service_return_code = self.value_handler.process(self.metric, metric_value, metric_tn, metric_tmax, metric_dmax)	
 	# write Passive service checks to checkresult file
-	self.checkresult_file_handler.build_service(self.host_name, service_name, 0, 0, 1, 1, 0.1, service_last_seen, service_last_seen, 0, 1, service_return_code, metric_value, metric_units)
+	self.checkresult_file_handler.build_service(self.host_name, service_name, 0, 0, 1, 1, 0.1, service_last_seen, service_last_seen, 0, 1, service_return_code, metric_value, metric_units,"")
 
     
 	
