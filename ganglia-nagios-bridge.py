@@ -25,6 +25,7 @@ import argparse
 import re
 import socket
 import xml.sax
+import time
 import nagios_checkresult
 
 # wrapper class so that the SAX parser can process data from a network
@@ -164,7 +165,7 @@ class GangliaHandler(xml.sax.ContentHandler):
 	host_last_seen = str(last_seen) + '.0'
 	
 	# write host checks to Nagios checkresult file
-	self.checkresult_file_handler.build_host(self.host_name, 0, 0, 1, 1, 0.1, host_last_seen, host_last_seen, 0, 1, host_return_code,"")
+	self.checkresult_file_handler.build_host(time.asctime(), self.host_name, 0, 0, 1, 1, 0.1, host_last_seen, host_last_seen, 0, 1, host_return_code,"")
 
     def handle_metric(self, metric_name, service_name, attrs):
         # extract the metric attributes
@@ -189,7 +190,7 @@ class GangliaHandler(xml.sax.ContentHandler):
         # call the handler to process the value and return service state after comparing metric value and threshold:
         service_return_code = self.value_handler.process(self.metric, metric_value, metric_tn, metric_tmax, metric_dmax)	
 	# write Passive service checks to checkresult file
-	self.checkresult_file_handler.build_service(self.host_name, service_name, 0, 0, 1, 1, 0.1, service_last_seen, service_last_seen, 0, 1, service_return_code, metric_value, metric_units,"")
+	self.checkresult_file_handler.build_service(time.asctime(), self.host_name, service_name, 0, 0, 1, 1, 0.1, service_last_seen, service_last_seen, 0, 1, service_return_code, metric_value, metric_units,"")
 
     
 	
@@ -229,7 +230,7 @@ if __name__ == '__main__':
 	#Instantiate GenerateNagiosCheckResult class
 	gn = nagios_checkresult.GenerateNagiosCheckResult()
 	#Create CheckResultFile
-	gn.create(nagios_result_dir)
+	gn.create(nagios_result_dir, int(time.time()))
         parser.setContentHandler(GangliaHandler(clusters_c, pg,gn))
         # run the main program loop
         parser.parse(SocketInputSource(sock))
