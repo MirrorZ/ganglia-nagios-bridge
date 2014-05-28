@@ -41,7 +41,7 @@ class GenerateNagiosCheckResult:
         	os.write(self.fh, "file_time=" + str(file_time) + "\n")
 	except OSError as e:
     		#print "OS error({0}): {1}".format(e.errno, e.strerror)
-		print "Failed to create tempfile at", nagios_result_dir
+		print "Failed to create tempfile at ", nagios_result_dir
 		sys.exit(1)
         
     # Accepts parameters required for the host checkresult
