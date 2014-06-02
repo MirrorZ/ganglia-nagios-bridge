@@ -230,16 +230,20 @@ if __name__ == '__main__':
 	#Instantiate GenerateNagiosCheckResult class
 	gn = nagios_checkresult.GenerateNagiosCheckResult()
 	#Create CheckResultFile
-	gn.create(nagios_result_dir, int(time.time()))
-        parser.setContentHandler(GangliaHandler(clusters_c, pg,gn))
-        # run the main program loop
-        parser.parse(SocketInputSource(sock))
+	try:
+	    gn.create(nagios_result_dir, int(time.time()))
+            parser.setContentHandler(GangliaHandler(clusters_c, pg,gn))
+            # run the main program loop
+            parser.parse(SocketInputSource(sock))
 	
-        # write out for Nagios
-        gn.submit()
+            # write out for Nagios
+            gn.submit()
 
-        # all done
-        sock.close()
+            # all done
+            sock.close()
+	except OSError as e:
+	    print "Failed to create tempfile at", nagios_result_dir	   
+        
     except socket.error as e:
         logging.warn('Failed to connect to gmetad: %s', e.strerror)
 
