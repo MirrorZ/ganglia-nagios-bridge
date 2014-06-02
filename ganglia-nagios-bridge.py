@@ -36,7 +36,7 @@ class SocketInputSource:
 	
     def getByteStream(self):
         return self
-	
+    
     def read(self, buf_size):
         return self.socket.recv(buf_size)
 
@@ -69,7 +69,7 @@ class PassiveGenerator:
         else:
             service_return_code = 0
 	return service_return_code
-      
+    
 
 # SAX event handler for parsing the Ganglia XML stream
 class GangliaHandler(xml.sax.ContentHandler):
@@ -200,7 +200,7 @@ if __name__ == '__main__':
         # parse command line
         parser = argparse.ArgumentParser(description='read Ganglia XML and generate Nagios check results file')
         parser.add_argument('config_file', nargs='?',
-            help='configuration file', default='/etc/ganglia/nagios-bridge.conf')
+                            help='configuration file', default='/etc/ganglia/nagios-bridge.conf')
         args = parser.parse_args()
 
         # read the configuration file, setting some defaults first
