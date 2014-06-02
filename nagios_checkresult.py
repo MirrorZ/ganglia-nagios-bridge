@@ -26,28 +26,23 @@ import sys
 class GenerateNagiosCheckResult:
     
     def __init__(self):
-        self.service_state = {0: 'OK', 1: 'WARNING', 2: 'CRITICAL', 3: 'UNKNOWN'}
-        self.host_state = {0: 'UP', 1: 'DOWN', 2: 'DOWN', 3: 'DOWN'}
+	self.service_state = {0: 'OK', 1: 'WARNING', 2: 'CRITICAL', 3: 'UNKNOWN'}
+	self.host_state = {0: 'UP', 1: 'DOWN', 2: 'DOWN', 3: 'DOWN'}
 
     # Creates a checkresult file
     def create(self, nagios_result_dir, file_time):
-        # Nagios is quite fussy about the filename, it must be
+	# Nagios is quite fussy about the filename, it must be
         # a 7 character name starting with 'c'
-        try:
-            tmp_file = tempfile.mkstemp(prefix='c',dir=nagios_result_dir) # specifies name and directory, check tempfile thoroughly
-            self.fh = tmp_file[0]
-            self.cmd_file = tmp_file[1]
-            os.write(self.fh, "### Active Check Result File ###\n")
-            os.write(self.fh, "file_time=" + str(file_time) + "\n")
-        except OSError as e:
-            #print "OS error({0}): {1}".format(e.errno, e.strerror)
-            print "Failed to create tempfile at ", nagios_result_dir
-            sys.exit(1)
+	tmp_file = tempfile.mkstemp(prefix='c',dir=nagios_result_dir) # specifies name and directory, check tempfile thoroughly
+	self.fh = tmp_file[0]
+        self.cmd_file = tmp_file[1]
+        os.write(self.fh, "### Active Check Result File ###\n")
+        os.write(self.fh, "file_time=" + str(file_time) + "\n")
         
     # Accepts parameters required for the host checkresult
     # Writes host checks to checkresult file
     def build_host(self, checkresult_time, host, check_type, check_options, scheduled_check, reschedule_check, latency, start_time, finish_time, early_timeout, exited_ok, host_return_code, output_string):
-        os.write(self.fh, "\n### Nagios Host Check Result ###\n")
+	os.write(self.fh, "\n### Nagios Host Check Result ###\n")
         os.write(self.fh, "# Time: " + checkresult_time + "\n")
         os.write(self.fh, "host_name=" + host + "\n")
         os.write(self.fh, "check_type=" + str(check_type) + "\n")
@@ -60,15 +55,15 @@ class GenerateNagiosCheckResult:
         os.write(self.fh, "early_timeout=" + str(early_timeout) + "\n")
         os.write(self.fh, "exited_ok=" + str(exited_ok) + "\n")
         os.write(self.fh, "return_code=" + str(host_return_code) + "\n")
-        if not output_string:
-            os.write(self.fh, "output=" + " " + "Host (" + host + ")" + " " + self.host_state[host_return_code] + "\\n\n")
-        else:
-            os.write(self.fh, "output=" + " " + output_string + "\\n\n")
+	if not output_string:
+		os.write(self.fh, "output=" + " " + "Host (" + host + ")" + " " + self.host_state[host_return_code] + "\\n\n")
+	else:
+		os.write(self.fh, "output=" + " " + output_string + "\\n\n")
    
     # Accepts parameters required for the service checkresult
     # Writes service checks to the checkresult file 
     def build_service(self, checkresult_time, host, service_name, check_type, check_options, scheduled_check, reschedule_check, latency, start_time, finish_time, early_timeout, exited_ok, service_return_code, metric_value, metric_units, output_string):
-        os.write(self.fh, "\n### Nagios Service Check Result ###\n")
+	os.write(self.fh, "\n### Nagios Service Check Result ###\n")
         os.write(self.fh, "# Time: " + checkresult_time + "\n")
         os.write(self.fh, "host_name=" + host + "\n")
         os.write(self.fh, "service_description=" + service_name + "\n")
@@ -82,10 +77,10 @@ class GenerateNagiosCheckResult:
         os.write(self.fh, "early_timeout=" + str(early_timeout) + "\n")
         os.write(self.fh, "exited_ok=" + str(exited_ok) + "\n")
         os.write(self.fh, "return_code=" + str(service_return_code) + "\n")
-        if not output_string:
-            os.write(self.fh, "output=" + service_name + " " + self.service_state[service_return_code] + "- " + service_name + " " +  str(metric_value) + " " + metric_units + "\\n\n")
+	if not output_string:
+        	os.write(self.fh, "output=" + service_name + " " + self.service_state[service_return_code] + "- " + service_name + " " +  str(metric_value) + " " + metric_units + "\\n\n")
 	else:
-	    os.write(self.fh, "output=" + " " + output_string + "\\n\n")
+		os.write(self.fh, "output=" + " " + output_string + "\\n\n")
 
     # Close the file handle and create an ok-to-go indicator file 
     def submit(self):
