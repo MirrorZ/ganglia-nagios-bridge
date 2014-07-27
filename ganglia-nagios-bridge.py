@@ -27,6 +27,7 @@ import socket
 import xml.sax
 import time
 import nagios_checkresult
+import conf_parser
 
 # wrapper class so that the SAX parser can process data from a network
 # socket
@@ -58,13 +59,13 @@ class PassiveGenerator:
             service_return_code = 3
         elif isinstance(metric_value, str):
             service_return_code = 0
-        elif 'crit_below' in metric_def and  metric_value < metric_def['crit_below']:
+        elif metric_def['crit_below'] is not None and metric_value < float(metric_def['crit_below']):
             service_return_code = 2
-        elif 'warn_below' in metric_def and metric_value < metric_def['warn_below']:
+        elif metric_def['warn_below'] is not None and metric_value < float(metric_def['warn_below']):
 	    service_return_code = 1
-        elif 'crit_above' in metric_def and metric_value > metric_def['crit_above']:
+        elif metric_def['crit_above'] is not None and metric_value > float(metric_def['crit_above']):
             service_return_code = 2
-        elif 'warn_above' in metric_def and metric_value > metric_def['warn_above']:
+        elif metric_def['warn_above'] is not None and metric_value > float(metric_def['warn_above']):
             service_return_code = 1
         else:
             service_return_code = 0
@@ -73,19 +74,20 @@ class PassiveGenerator:
 
 # SAX event handler for parsing the Ganglia XML stream
 class GangliaHandler(xml.sax.ContentHandler):
-    def __init__(self, clusters_c, value_handler, checkresult_file_handler):
+    def __init__(self, clusters_c, value_handler, checkresult_file_handler, strip_domains):
         self.clusters_c = clusters_c
         self.value_handler = value_handler
 	self.checkresult_file_handler = checkresult_file_handler
         self.clusters_cache = {}
         self.hosts_cache = {}
         self.metrics_cache = {}
+	self.strip_domains = strip_domains
 
     def startElement(self, name, attrs):
 
         # METRIC is the most common element, it is handled first,
         # followed by HOST and CLUSTER
-
+	
         # handle common elements that we ignore
         if name == "EXTRA_ELEMENT":
             return
@@ -104,13 +106,9 @@ class GangliaHandler(xml.sax.ContentHandler):
                 self.handle_metric(metric_name, service_name, attrs)
                 return
             for idx, metric_def in enumerate(self.metrics):
-                match_result = metric_def[0].match(metric_name)
+                match_result = metric_def[0] == metric_name
                 if match_result:
-                    service_name_tmpl = metric_def[1]['service_name']
-                    if len(match_result.groups()) > 0:
-                        service_name = match_result.expand(service_name_tmpl)
-                    else:
-                        service_name = service_name_tmpl
+                    service_name = metric_def[1]['service_name']
                     self.metrics_cache[cache_key] = (idx, service_name)
                     self.metric = metric_def[1]
                     self.handle_metric(metric_name, service_name, attrs)
@@ -121,7 +119,7 @@ class GangliaHandler(xml.sax.ContentHandler):
             self.metrics = None
             self.host_name = attrs['NAME']
             self.host_reported = long(attrs['REPORTED'])
-            if strip_domains:
+            if self.strip_domains:
                 self.host_name = self.host_name.partition('.')[0]
             cache_key = (self.cluster_idx, self.host_name)
             if cache_key in self.hosts_cache:
@@ -130,7 +128,7 @@ class GangliaHandler(xml.sax.ContentHandler):
 		self.handle_host(host_name, attrs)
                 return
             for idx, host_def in enumerate(self.hosts):
-                if host_def[0].match(self.host_name):
+                if host_def[0] == self.host_name:
                     self.hosts_cache[cache_key] = idx
                     self.host_idx = idx
                     self.metrics = host_def[1]
@@ -147,7 +145,7 @@ class GangliaHandler(xml.sax.ContentHandler):
                 self.hosts = self.clusters_c[self.cluster_idx][1]
                 return
             for idx, cluster_def in enumerate(self.clusters_c):
-                if cluster_def[0].match(self.cluster_name):
+                if cluster_def[0] == self.cluster_name:
                     self.clusters_cache[self.cluster_name] = idx
                     self.cluster_idx = idx
                     self.hosts = cluster_def[1]
@@ -200,30 +198,18 @@ if __name__ == '__main__':
         # parse command line
         parser = argparse.ArgumentParser(description='read Ganglia XML and generate Nagios check results file')
         parser.add_argument('config_file', nargs='?',
-                            help='configuration file', default='/etc/ganglia/nagios-bridge.conf')
+                            help='configuration file', default='/etc/ganglia/sample.conf')
         args = parser.parse_args()
 
         # read the configuration file, setting some defaults first
         force_dmax = 0
         tmax_grace = 60
-        execfile(args.config_file)
-
-        # compile the regular expressions
-        clusters_c = []
-        for cluster_def in clusters:
-            cluster_c = re.compile(cluster_def[0])
-            hosts = []
-            for host_def in cluster_def[1]:
-                host_c = re.compile(host_def[0])
-                metrics = []
-                for metric_def in host_def[1]:
-                    metric_c = re.compile(metric_def[0])
-                    metrics.append((metric_c, metric_def[1]))
-                hosts.append((host_c, metrics))
-            clusters_c.append((cluster_c, hosts))
+  	#pasre config file
+	config_parse = conf_parser.ConfigParser()
+	config_parse.parse(args.config_file)
 
         # connect to the gmetad or gmond
-        sock = socket.create_connection((gmetad_host, gmetad_port))
+        sock = socket.create_connection((config_parse.gmetad_host, config_parse.gmetad_port))
         # set up the SAX parser
         parser = xml.sax.make_parser()
         pg = PassiveGenerator(force_dmax, tmax_grace)
@@ -231,8 +217,8 @@ if __name__ == '__main__':
 	gn = nagios_checkresult.GenerateNagiosCheckResult()
 	#Create CheckResultFile
 	try:
-	    gn.create(nagios_result_dir, int(time.time()))
-            parser.setContentHandler(GangliaHandler(clusters_c, pg,gn))
+	    gn.create(config_parse.nagios_result_dir, int(time.time()))
+            parser.setContentHandler(GangliaHandler(config_parse.clusters, pg, gn, config_parse.strip_domains))
             # run the main program loop
             parser.parse(SocketInputSource(sock))
 	
@@ -242,7 +228,7 @@ if __name__ == '__main__':
             # all done
             sock.close()
 	except OSError as e:
-	    print "Failed to create tempfile at", nagios_result_dir	   
+	    print "Failed to create tempfile at", config_parse.nagios_result_dir	   
         
     except socket.error as e:
         logging.warn('Failed to connect to gmetad: %s', e.strerror)
