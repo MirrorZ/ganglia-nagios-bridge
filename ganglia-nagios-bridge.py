@@ -28,6 +28,7 @@ import xml.sax
 import time
 import nagios_checkresult
 import conf_parser
+from pynag import Model
 
 # wrapper class so that the SAX parser can process data from a network
 # socket
@@ -70,11 +71,24 @@ class PassiveGenerator:
         else:
             service_return_code = 0
 	return service_return_code
-    
+ 
+# gets the hosts and services Nagios knows about
+class NagiosHosts: 
+    def __init__(self):
+	self.host_service = []
+   
+    def process(self):
+	all_hosts = Model.Host.objects.all
+	for host in all_hosts:
+		service_name = [] 
+		for service in host.get_effective_services():		
+			service_name.append(service.service_description)
+		self.host_service.append((host.host_name, service_name))	
+
 
 # SAX event handler for parsing the Ganglia XML stream
 class GangliaHandler(xml.sax.ContentHandler):
-    def __init__(self, clusters_c, value_handler, checkresult_file_handler, strip_domains):
+    def __init__(self, clusters_c, value_handler, checkresult_file_handler, strip_domains, nagios_hosts):
         self.clusters_c = clusters_c
         self.value_handler = value_handler
 	self.checkresult_file_handler = checkresult_file_handler
@@ -82,6 +96,7 @@ class GangliaHandler(xml.sax.ContentHandler):
         self.hosts_cache = {}
         self.metrics_cache = {}
 	self.strip_domains = strip_domains
+	self.host_service = nagios_hosts.host_service
 
     def startElement(self, name, attrs):
 
@@ -109,31 +124,38 @@ class GangliaHandler(xml.sax.ContentHandler):
                 match_result = metric_def[0] == metric_name
                 if match_result:
                     service_name = metric_def[1]['service_name']
-                    self.metrics_cache[cache_key] = (idx, service_name)
-                    self.metric = metric_def[1]
-                    self.handle_metric(metric_name, service_name, attrs)
-                    return
+		    # if service is defined in Nagios for host_name
+		    if service_name in self.nagios_service:
+        	            self.metrics_cache[cache_key] = (idx, service_name)
+        	            self.metric = metric_def[1]
+        	            self.handle_metric(metric_name, service_name, attrs)
+        	            return
 
         # handle a HOST element in the XML
         if name == "HOST" and self.hosts is not None:
             self.metrics = None
             self.host_name = attrs['NAME']
             self.host_reported = long(attrs['REPORTED'])
+	    self.nagios_service = None
             if self.strip_domains:
                 self.host_name = self.host_name.partition('.')[0]
             cache_key = (self.cluster_idx, self.host_name)
             if cache_key in self.hosts_cache:
-                self.host_idx = self.hosts_cache[cache_key]
+                self.host_ix = self.hosts_cache[cache_key]
                 self.metrics = self.clusters_c[self.cluster_idx][1][self.host_idx][1]
 		self.handle_host(host_name, attrs)
                 return
             for idx, host_def in enumerate(self.hosts):
                 if host_def[0] == self.host_name:
-                    self.hosts_cache[cache_key] = idx
-                    self.host_idx = idx
-                    self.metrics = host_def[1]
-		    self.handle_host(self.host_name, attrs)
-                    return
+		    for host in self.host_service:
+			if host[0] == self.host_name:
+                    		self.hosts_cache[cache_key] = idx
+                    		self.host_idx = idx
+                    		self.metrics = host_def[1]
+		    		self.handle_host(self.host_name, attrs)
+		    		# get the services defined for the host in Nagios
+				self.nagios_service = host[1]
+                    		return
 
         # handle a CLUSTER element in the XML
         if name == "CLUSTER":
@@ -151,7 +173,7 @@ class GangliaHandler(xml.sax.ContentHandler):
                     self.hosts = cluster_def[1]
                     return
 
-    # checks the state of host by comaring tmax and tn for the host
+    # checks the state of host by comparing tmax and tn for the host
     def handle_host(self, host_name, attrs):
         host_tn = int(attrs['TN'])
 	host_tmax = int(attrs['TMAX'])
@@ -208,6 +230,10 @@ if __name__ == '__main__':
 	config_parse = conf_parser.ConfigParser()
 	config_parse.parse(args.config_file)
 
+	#get hosts and associated services known to Nagios to prevent generating checkresult for hosts not known to Nagios
+	nagios_hosts = NagiosHosts()
+	nagios_hosts.process()
+
         # connect to the gmetad or gmond
         sock = socket.create_connection((config_parse.gmetad_host, config_parse.gmetad_port))
         # set up the SAX parser
@@ -218,7 +244,7 @@ if __name__ == '__main__':
 	#Create CheckResultFile
 	try:
 	    gn.create(config_parse.nagios_result_dir, int(time.time()))
-            parser.setContentHandler(GangliaHandler(config_parse.clusters, pg, gn, config_parse.strip_domains))
+            parser.setContentHandler(GangliaHandler(config_parse.clusters, pg, gn, config_parse.strip_domains, nagios_hosts))
             # run the main program loop
             parser.parse(SocketInputSource(sock))
 	
