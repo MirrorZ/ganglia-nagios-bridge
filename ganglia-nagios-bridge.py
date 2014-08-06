@@ -151,7 +151,9 @@ class GangliaHandler(xml.sax.ContentHandler):
                         if host[0] == self.host_name:
                             self.hosts_cache[cache_key] = idx
                             self.host_idx = idx
-                            self.metrics = host_def[1]
+                            self.metrics = []
+                            for metric_tuple in host_def[1]:
+                                self.metrics += metric_tuple
                             self.handle_host(self.host_name, attrs)
                             # get the services defined for the host in Nagios
                             self.nagios_service = host[1]
@@ -170,7 +172,9 @@ class GangliaHandler(xml.sax.ContentHandler):
                 if cluster_def[0] == self.cluster_name:
                     self.clusters_cache[self.cluster_name] = idx
                     self.cluster_idx = idx
-                    self.hosts = cluster_def[1]
+                    self.hosts = []
+                    for host_name in cluster_def[1]:
+                        self.hosts.append((host_name, cluster_def[1][host_name]))
                     return
 
     # checks the state of host by comparing tmax and tn for the host
