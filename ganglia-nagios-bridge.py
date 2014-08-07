@@ -132,32 +132,33 @@ class GangliaHandler(xml.sax.ContentHandler):
                         return
 
         # handle a HOST element in the XML
-        if name == "HOST" and self.hosts is not None:
+        if name == "HOST":
             self.metrics = None
-            self.host_name = attrs['NAME']
-            self.host_reported = long(attrs['REPORTED'])
-            self.nagios_service = None
-            if self.strip_domains:
-                self.host_name = self.host_name.partition('.')[0]
-            cache_key = (self.cluster_idx, self.host_name)
-            if cache_key in self.hosts_cache:
-                self.host_ix = self.hosts_cache[cache_key]
-                self.metrics = self.clusters_c[self.cluster_idx][1][self.host_idx][1]
-                self.handle_host(host_name, attrs)
-                return
-            for idx, host_def in enumerate(self.hosts):
-                if host_def[0] == self.host_name:
-                    for host in self.host_service:
-                        if host[0] == self.host_name:
-                            self.hosts_cache[cache_key] = idx
-                            self.host_idx = idx
-                            self.metrics = []
-                            for metric_tuple in host_def[1]:
-                                self.metrics += metric_tuple
-                            self.handle_host(self.host_name, attrs)
-                            # get the services defined for the host in Nagios
-                            self.nagios_service = host[1]
-                            return
+            if self.hosts is not None:
+                self.host_name = attrs['NAME']
+                self.host_reported = long(attrs['REPORTED'])
+                self.nagios_service = None
+                if self.strip_domains:
+                    self.host_name = self.host_name.partition('.')[0]
+                cache_key = (self.cluster_idx, self.host_name)
+                if cache_key in self.hosts_cache:
+                    self.host_ix = self.hosts_cache[cache_key]
+                    self.metrics = self.clusters_c[self.cluster_idx][1][self.host_idx][1]
+                    self.handle_host(host_name, attrs)
+                    return
+                for idx, host_def in enumerate(self.hosts):
+                    if host_def[0] == self.host_name:
+                        for host in self.host_service:
+                            if host[0] == self.host_name:
+                                self.hosts_cache[cache_key] = idx
+                                self.host_idx = idx
+                                self.metrics = []
+                                for metric_tuple in host_def[1]:
+                                    self.metrics += metric_tuple
+                                self.handle_host(self.host_name, attrs)
+                                # get the services defined for the host in Nagios
+                                self.nagios_service = host[1]
+                                return
 
         # handle a CLUSTER element in the XML
         if name == "CLUSTER":
