@@ -10,16 +10,22 @@ class ConfigParser:
     def parse (self,config_file):
         try:
             config = ConfigObj(config_file)
+
+            #get gmetad host information and nagios checkresult directory
             self.gmetad_host = config.pop('gmetad_host')
             self.gmetad_port = config.pop('gmetad_port')
             self.force_dmax = config.pop('force_dmax')
             self.tmax_grace = config.pop('tmax_grace')
             self.strip_domains = config.pop('strip_domains')
             self.nagios_result_dir = config.pop('nagios_result_dir')
+
+
             for cluster_name in config.keys():
                 cluster_hosts = {}
+                #get hosts in the cluster
                 for host_name in config[cluster_name].keys():
                     metrics = []
+                    #collect metric for each host in the cluster
                     for metric_name in config[cluster_name][host_name].keys():
                         metric_def = {}
                         metric_def['service_name'] = config[cluster_name][host_name][metric_name]['service_name']
