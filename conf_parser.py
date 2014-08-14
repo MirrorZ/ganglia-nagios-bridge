@@ -43,7 +43,7 @@ class ConfigParser:
                             metric_def['warn_above'] = None
                         metrics.append((metric_name,metric_def))
                     for host in host_name.split(','):
-                        cluster_hosts.setdefault(host, []).append(metrics)
+                        cluster_hosts.setdefault(host.lstrip(), []).append(metrics)
                 self.clusters.append((cluster_name,cluster_hosts))
 
         except (ConfigObjError, IOError), e:
