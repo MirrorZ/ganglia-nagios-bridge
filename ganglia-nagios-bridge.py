@@ -225,7 +225,7 @@ if __name__ == '__main__':
         # parse command line
         parser = argparse.ArgumentParser(description='read Ganglia XML and generate Nagios check results file')
         parser.add_argument('config_file', nargs='?',
-                            help='configuration file', default='/etc/ganglia/sample.conf')
+                            help='configuration file', default='/etc/ganglia/ganglia-nagios-bridge.conf')
         args = parser.parse_args()
 
         # read the configuration file, setting some defaults first
